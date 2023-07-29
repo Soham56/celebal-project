@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+      *{
+        margin: 0px;
+        padding: 0px;
+        box-sizing: border-box;
+      }
+      body{
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      aside{
+        width: 25%;
+        height: 100%;
+        background: lightseagreen;
+      }
+      ul{
+        width: 75%;
+        background: rgb(52, 192, 247);
+        overflow-y: auto;
+        padding: 1rem 2rem 4rem;
+      }
+      input{
+        padding: 10px;
+        width: 90%;
+        outline: none;
+        border: none;
+      }
+      button{
+        padding: 10px;
+        width: 10%;
+      }
+
+      form { width: 75%;background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; right: 0; display: none; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+      input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
+      input:focus { outline: none; }
+      form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+
+      ul { list-style-type: none;display: none;}
+      ul >li { padding: 0.5rem 1rem; margin-bottom: 10px;}
+      ul >li:nth-child(odd) { background: #efefef; }
+      .owner, .private,.group{
+        margin: 10px;
+        padding: 20px;
+        background: lightpink;
+      }
+      .private{
+        background: gold;
+      }
+      .group{
+        background: rgb(255, 111, 0);
+      }
+      .active{
+        display: block;
+      }
+      form.active{
+        display: flex;
+      }
+      li span{
+        border: 2px solid black;
+        background: greenyellow;
+        padding: 5px;
+        margin-left: 10px;
+      }
+    </style>
+  </head>
+  <body>
+
+    <aside>
+      <div class="owner">Yourself</div>
+      <div class="private">Private Chat</div>
+      <div class="group">Group Chat</div>
+    </aside>
+    <ul id="ownMessages" class="active">
+      
+    </ul>
+    <ul id="privateMessages">
+      
+    </ul>
+    <ul id="groupMessages">
+      
+    </ul>
+    <form id="formOwn" class="active" action="">
+      <input id="inputOwn" autocomplete="off" /><button>Send</button>
+    </form>
+    <form id="formPrivate" action="">
+      <input id="inputPrivate" autocomplete="off" /><button>Send</button>
+    </form>
+    <form id="formGroup" action="">
+      <input id="inputGroup" autocomplete="off" /><button>Send</button>
+    </form>
+  </body>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    //primary setup
+    let owner = document.querySelector('.owner');
+    let private = document.querySelector('.private');
+    let group = document.querySelector('.group');
+    let chatBody = document.querySelectorAll('ul');
+    let chatform = document.querySelectorAll('form');
+    let userId;
+
+    owner.addEventListener('click', ()=>{func(0);})
+    private.addEventListener('click', ()=>{
+      func(1);
+      getUserData();
+    })
+    group.addEventListener('click', ()=>{func(2);})
+
+    
+
+    //functionality
+    
+
+    getUserName();
+    
+
+    let socket = io();
+
+    //Self Chating
+    formOwn.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (inputOwn.value) {
+        socket.emit('owner message', inputOwn.value);
+        inputOwn.value = '';
+      }
+    });
+
+    //Self Chat event
+    socket.on('owner message', function(msg){
+      pushMessage(chatBody[0], `You: ${msg}`);
+    })
+
+
+    //Private chat
+    formPrivate.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if(userId){
+        if (inputPrivate.value) {
+          socket.emit('private message', {
+            user: userId,
+            message: inputPrivate.value
+          });
+          inputPrivate.value = '';
+        }
+      }
+    });
+
+    socket.on('private message', (msg)=>{
+      pushMessage(chatBody[1], `${msg.name}: ${msg.info}`);
+    })
+
+    //Group Chat
+    formGroup.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (inputGroup.value) {
+        socket.emit('group message', inputGroup.value);
+        inputGroup.value = '';
+      }
+    });
+
+    
+    //push the message to the chat body
+    function pushMessage(location,msg){
+      let item = document.createElement('li');
+      item.textContent = msg;
+      location.appendChild(item);
+      window.scrollTo(0,document.body.scrollHeight);
+    }
+
+    //open the active class chat body
+    function func(j){
+      for(let i=0; i<3; i++){
+        if(chatBody[i].classList.contains('active')) chatBody[i].classList.remove('active');
+        if(chatform[i].classList.contains('active')) chatform[i].classList.remove('active');
+      }
+      chatBody[j].classList.add('active');
+      chatform[j].classList.add('active');
+
+    }
+
+    //Ask the user to enter his name , at the same time it's connect with server to confirm that the username is already present to not if present server reply with again put the name , otherwise you are good to go.
+    async function getUserName(){
+      while(true){
+        let name = prompt('Enter your name');
+        let response = await fetch('/', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify({
+              userName: name
+          })
+        });
+        let data = await response.json();
+        if(data.success){
+          pushMessage(chatBody[0],`From Server :  Welcome ${name}`);
+          break;
+        }
+      }
+    }
+
+    //Get the all user data who are available 
+    async function getUserData(){
+      let response = await fetch('/api/data');
+      let data = await response.json();
+      let result = data.info;
+      pushMessage(chatBody[1],`Please select the user form the below details 👇\nClick on the user to chat privately !!! 🗣️🗣️🗣️`)
+      result.forEach(e=>{
+        let item = document.createElement('li');
+
+        let nameSpan = document.createElement('span');
+        nameSpan.textContent = 'Name: ' + e.peopleName;
+        let idSpan = document.createElement('span');
+        idSpan.textContent = 'id: ' + e.id;
+
+        item.appendChild(nameSpan);
+        item.appendChild(idSpan);
+
+        item.classList.add('userDetail');
+        item.addEventListener('click',()=>{
+          userId = item.childNodes[1].textContent.slice(4,-1);
+          chatBody[1].innerHTML = `You are chatting to ${userId}`;
+        })
+        chatBody[1].appendChild(item);
+      })
+    }
+
+  </script>
+</html>
