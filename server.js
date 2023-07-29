@@ -26,7 +26,12 @@ app.post('/', (req,res)=>{
         return;
     }
 
+    console.log(users.length);
     users[users.length-1].peopleName = userName;
+    io.emit('group message', {
+        name: userName,
+        info: 'Joined'
+    })
 
     res.status(201).json({
         success: true,
@@ -44,10 +49,10 @@ app.get('/api/data', (req,res)=>{
 io.on('connection', (socket)=>{
     console.log('a user connected');
     socket.on('disconnect', ()=>{
+        removeUser(socket.id);
         console.log('user disconnected');
     })
     socket.on('owner message', (msg)=>{
-        console.log('message', msg);
         socket.emit('owner message', msg);
     })
     socket.on('private message', (msg)=>{
@@ -56,17 +61,32 @@ io.on('connection', (socket)=>{
             info: msg.message
         })
     })
+    socket.on('group message', (msg)=>{
+        io.emit('group message', {
+            name: getName(socket.id),
+            info: msg
+        })
+    })
     users.push({
         peopleName: '',
         id: socket.id
     })
 })
 
-function getName(id) {
+function getName(givenId) {
+    let name='hi';
     users.forEach(e=>{
-        if(e.id===id){
-            return e.peopleName;
+        console.log(e.peopleName);
+        if((e.id)===givenId){
+            name =  e.peopleName;
         }
+    })
+    return name;
+}
+
+function removeUser(givenId){
+    users = users.filter((e)=>{
+        return e.id !== givenId;
     })
 }
 
